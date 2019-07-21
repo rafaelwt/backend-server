@@ -1,54 +1,55 @@
 var express = require('express');
-const bcrypt = require('bcrypt');
+var bcrypt = require('bcrypt');
 var jwt = require('jsonwebtoken');
+
 var mdAutenticacion = require('../middlewares/autenticacion');
+
 var app = express();
+
 var Usuario = require('../models/usuario');
 
-var SEED = require('../config/config').SEED;
-
-// ===============================================
-// Obtener Usuarios
-// ===============================================
+// ==========================================
+// Obtener todos los usuarios
+// ==========================================
 app.get('/', (req, res, next) => {
 
-    Usuario.find({},'nombre ,email, img role')
-    .exec(
-        (err, usuarios)=> {
-            if(err) {
-                res.status(500).json({
-                    ok: false,
-                    mensaje: 'Error cargando usuario',
-                    errors: err
-               });
-            }
-            res.status(200).json({
-                ok: true,
-                usuarios
-           });
-        });
-});
-// ===============================================
-// Verificar token
-// ===============================================
-// Middleware prohibi la ejecucion de lo metodos debajo de el
-// app.use('/', (req, res, next)=> {
-//     var token = req.query.token;
-//     jwt.verify(token, SEED, (err, decoded)=>{
-//         if(err) {
-//             return res.status(401).json({
-//                 ok: false,
-//                 mensaje: 'token incorrecto',
-//                 errors: err
-//            });
-//         }
-//         next();   // si cumple el if le dice que puede continuar con las funciones de abajo
-//     });
-// });
+    var desde = req.query.desde || 0;
+    desde = Number(desde);
 
-// ===============================================
-// Actualizar Usuario
-// ===============================================
+    Usuario.find({}, 'nombre email img role')
+        .skip(desde)
+        .limit(5)
+        .exec(
+            (err, usuarios) => {
+
+                if (err) {
+                    return res.status(500).json({
+                        ok: false,
+                        mensaje: 'Error cargando usuario',
+                        errors: err
+                    });
+                }
+
+                Usuario.count({}, (err, conteo) => {
+
+                    res.status(200).json({
+                        ok: true,
+                        usuarios: usuarios,
+                        total: conteo
+                    });
+
+                })
+
+
+
+
+            });
+});
+
+
+// ==========================================
+// Actualizar usuario
+// ==========================================
 app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
 
     var id = req.params.id;
@@ -103,41 +104,47 @@ app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
 
 
 
-// ===============================================
-// Crear usuario
-// ===============================================
+// ==========================================
+// Crear un nuevo usuario
+// ==========================================
 app.post('/', mdAutenticacion.verificaToken, (req, res) => {
+
     var body = req.body;
 
     var usuario = new Usuario({
         nombre: body.nombre,
         email: body.email,
-        password:  bcrypt.hashSync(body.password, 10),
+        password: bcrypt.hashSync(body.password, 10),
         img: body.img,
         role: body.role
-    })
+    });
 
     usuario.save((err, usuarioGuardado) => {
+
         if (err) {
             return res.status(400).json({
                 ok: false,
-                mensaje: 'Error al actualizar usuario',
+                mensaje: 'Error al crear usuario',
                 errors: err
             });
         }
-        res.status(200).json({
+
+        res.status(201).json({
             ok: true,
-            usuario: usuarioGuardado
+            usuario: usuarioGuardado,
+            usuariotoken: req.usuario
         });
+
 
     });
 
 });
 
+
 // ============================================
 //   Borrar un usuario por el id
 // ============================================
-app.delete('/:id', mdAutenticacion.verificaToken , (req, res) => {
+app.delete('/:id', mdAutenticacion.verificaToken, (req, res) => {
 
     var id = req.params.id;
 
@@ -167,5 +174,6 @@ app.delete('/:id', mdAutenticacion.verificaToken , (req, res) => {
     });
 
 });
+
 
 module.exports = app;
